@@ -3,14 +3,14 @@ name: Build & deploy a EKS
 on:
   push:
     branches: [main]
-  workflow_dispatch:          # permite dispararlo a mano desde la UI
+  workflow_dispatch: # permite dispararlo a mano desde la UI
 
 concurrency:
   group: deploy-main
-  cancel-in-progress: false   # nunca cancelar un deploy a medias
+  cancel-in-progress: false # nunca cancelar un deploy a medias
 
 permissions:
-  id-token: write             # imprescindible para OIDC
+  id-token: write # imprescindible para OIDC
   contents: read
 
 env:
@@ -33,14 +33,9 @@ jobs:
           echo "secreto: ${#ARN} caracteres, empieza con ${ARN:0:26}"
           TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
-          python3 -c "
-          import sys,base64,json
-          t=sys.argv[1].split('.')[1]; t+='='*(-len(t)%4)
-          c=json.loads(base64.urlsafe_b64decode(t))
-          print('sub :', c.get('sub'))
-          print('aud :', c.get('aud'))
-          print('repo:', c.get('repository'))
-          " \"\$TOKEN\"
+          P=$(echo "$TOKEN" | cut -d. -f2)
+          case $(( ${#P} % 4 )) in 2) P="$P==";; 3) P="$P=";; esac
+          echo "$P" | base64 -d | jq '{sub, aud, repository, ref}'
       - name: Asumir rol en AWS (OIDC)
         uses: aws-actions/configure-aws-credentials@v6
         with:
@@ -87,4 +82,3 @@ jobs:
         run: |
           kubectl -n $NAMESPACE rollout undo deployment/$DEPLOYMENT
           echo "Rollout fallido: se revirtió a la revisión anterior" >> $GITHUB_STEP_SUMMARY
-
