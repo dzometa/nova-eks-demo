@@ -7,7 +7,7 @@
 const express = require("express");
 const app = express();
 
-const VERSION = process.env.APP_VERSION || "v5";   // <- lo único que cambia
+const VERSION = process.env.APP_VERSION || "v6";   // <- lo único que cambia
 const COMMIT = process.env.GIT_SHA || "local";
 
 app.get("/healthz", (_req, res) => res.status(200).send("ok"));
