@@ -26,13 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
-      - name: Asumir rol en AWS (OIDC)
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-          role-session-name: gha-${{ github.run_id }}
       - name: Ver el token que emite GitHub
         env:
           ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
@@ -48,6 +41,12 @@ jobs:
           print('aud :', c.get('aud'))
           print('repo:', c.get('repository'))
           " \"\$TOKEN\"
+      - name: Asumir rol en AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.run_id }}
 
       - name: Login en ECR
         id: ecr
