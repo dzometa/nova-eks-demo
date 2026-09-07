@@ -1,0 +1,32 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: nova-demo
+  region: us-east-2
+  version: "1.34"
+
+iam:
+  withOIDC: true            # habilita IRSA, lo necesita el ALB controller
+
+accessConfig:
+  authenticationMode: API_AND_CONFIG_MAP
+
+addons:
+  - name: vpc-cni
+  - name: coredns
+  - name: kube-proxy
+  - name: eks-pod-identity-agent
+
+managedNodeGroups:
+  - name: ng-general
+    instanceType: t3.medium
+    desiredCapacity: 2
+    minSize: 2
+    maxSize: 4
+    volumeSize: 20
+    privateNetworking: true   # nodos en subredes privadas, salen por NAT
+    labels:
+      role: general
+    tags:
+      proyecto: nova-demo

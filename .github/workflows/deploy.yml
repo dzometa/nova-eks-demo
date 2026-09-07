@@ -1,0 +1,76 @@
+name: Build & deploy a EKS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:          # permite dispararlo a mano desde la UI
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false   # nunca cancelar un deploy a medias
+
+permissions:
+  id-token: write             # imprescindible para OIDC
+  contents: read
+
+env:
+  AWS_REGION: us-east-2
+  CLUSTER: nova-demo
+  ECR_REPO: nova-demo-app
+  NAMESPACE: demo
+  DEPLOYMENT: web
+  CONTAINER: web
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production   # opcional: exige aprobación manual
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Asumir rol en AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.run_id }}
+
+      - name: Login en ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Construir y publicar imagen
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            --build-arg GIT_SHA=$TAG \
+            -t $REGISTRY/$ECR_REPO:$TAG .
+          docker push $REGISTRY/$ECR_REPO:$TAG
+
+      - name: Generar kubeconfig
+        run: aws eks update-kubeconfig --name $CLUSTER --region $AWS_REGION
+
+      - name: Desplegar
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          TAG: ${{ github.sha }}
+        run: |
+          kubectl -n $NAMESPACE set image \
+            deployment/$DEPLOYMENT \
+            $CONTAINER=$REGISTRY/$ECR_REPO:$TAG
+          kubectl -n $NAMESPACE annotate deployment/$DEPLOYMENT \
+            kubernetes.io/change-cause="commit ${{ github.sha }} por ${{ github.actor }}" \
+            --overwrite
+
+      - name: Esperar el rollout
+        run: |
+          kubectl -n $NAMESPACE rollout status \
+            deployment/$DEPLOYMENT --timeout=180s
+
+      - name: Revertir si el rollout falló
+        if: failure()
+        run: |
+          kubectl -n $NAMESPACE rollout undo deployment/$DEPLOYMENT
+          echo "Rollout fallido: se revirtió a la revisión anterior" >> $GITHUB_STEP_SUMMARY
