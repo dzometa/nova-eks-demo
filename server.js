@@ -18,7 +18,7 @@
 const express = require("express");
 const app = express();
 
-const VERSION = process.env.APP_VERSION || "v6";   // <- lo único que cambia entre demos
+const VERSION = process.env.APP_VERSION || "v7";   // <- lo único que cambia entre demos
 const COMMIT  = process.env.GIT_SHA || "local";
 const REGION  = process.env.AWS_REGION || "us-east-2";
 const POD     = process.env.HOSTNAME || "sin-pod";
