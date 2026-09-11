@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: web # <- este nombre lo usa "kubectl set image"
-          image: 386783748837.dkr.ecr.us-east-2.amazonaws.com/nova-demo-app:v3
+          image: 386783748837.dkr.ecr.us-east-2.amazonaws.com/nova-demo-app:v1
           ports:
             - containerPort: 3000
 
