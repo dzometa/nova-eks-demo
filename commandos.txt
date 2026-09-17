@@ -1,10 +1,14 @@
 
+
 export AWS_REGION=us-east-2
 export CLUSTER=nova-demo
-export ECR_REPO=nova-demo-app
-export GH_REPO=mi-org/nova-eks-demo
+export GH_REPO=dzometa/nova-eks-demo
 export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-echo $ACCOUNT_ID
+export ROLE_ARN=$(aws iam get-role --role-name GitHubActionsEKSDeploy --query 'Role.Arn' --output text)
+
+echo "$GH_REPO | $ROLE_ARN"     # las dos tienen que imprimir algo
+gh secret set AWS_DEPLOY_ROLE_ARN --body "$ROLE_ARN"
+
 
 eksctl create cluster -f cluster.yaml   IAC
 kubectl get nodes -o wide
@@ -76,3 +80,35 @@ eks/aws-load-balancer-controller -n kube-system \
 --set region=$AWS_REGION
 
 kubectl -n kube-system rollout status deploy/aws-load-balancer-controller
+
+
+-----CONECTAR CON GITHUB------------------------
+aws iam create-open-id-connect-provider \
+--url https://token.actions.githubusercontent.com \
+--client-id-list sts.amazonaws.com
+
+
+
+sed -i "s/ACCOUNT_ID/$ACCOUNT_ID/g" iam/trust-policy.json iam/deploy-policy.json
+sed -i "s|mi-org/nova-eks-demo|$GH_REPO|" iam/trust-policy.json
+aws iam create-role --role-name GitHubActionsEKSDeploy \
+--assume-role-policy-document file://iam/trust-policy.json
+aws iam put-role-policy --role-name GitHubActionsEKSDeploy \
+--policy-name deploy --policy-document file://iam/deploy-policy.json
+
+dejar ver el rol al cluster
+
+export ROLE_ARN=arn:aws:iam::$ACCOUNT_ID:role/GitHubActionsEKSDeploy
+aws eks create-access-entry \
+--cluster-name $CLUSTER --region $AWS_REGION \
+--principal-arn $ROLE_ARN --type STANDARD
+aws eks associate-access-policy \
+--cluster-name $CLUSTER --region $AWS_REGION \
+--principal-arn $ROLE_ARN \
+--policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy \
+--access-scope type=namespace,namespaces=demo
+
+
+ver que repo tiene el permiso otorgado
+aws iam get-role --role-name GitHubActionsEKSDeploy \
+--query 'Role.AssumeRolePolicyDocument.Statement[0].Condition'
